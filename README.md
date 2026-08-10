@@ -18,3 +18,6 @@ Jeder Push auf `main` geht live.
 
 Supabase-Projekt `pawkin` (eu-central-1): Auth, Postgres mit RLS, Storage.
 Schema-Migrationen laufen über die Supabase-MCP-Integration in Claude.
+
+<!-- auto-deploy test -->
+
