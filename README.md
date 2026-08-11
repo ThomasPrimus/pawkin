@@ -6,6 +6,19 @@ Live: https://pawkin.eu
 
 ## Struktur
 
+Zwei Oberflächen parallel: die bestehende App unter `pawkin.eu/app.html` und
+die neue React-Fassung unter `pawkin.eu/app/`. Es zieht Screen für Screen um,
+damit die Live-Seite nie offline ist. Supabase ist für beide dasselbe.
+
+### Neu (React)
+
+- `frontend/` – Quellcode: Vite 8, React 19, TypeScript 7, Zod, Tailwind 4.
+  Siehe `frontend/README.md`.
+- `app/` – **erzeugter Build**, von der GitHub Action committet. Nicht von
+  Hand bearbeiten; Änderungen gehören nach `frontend/`.
+
+### Bestehend (Vanilla JS)
+
 - `index.html` – Landingpage (statisch)
 - `app.html` – Web-App: HTML-Shell (Markup + Script-Tags), kein Build-Step
 - `css/app.css` – Styles der App
@@ -42,6 +55,11 @@ Neue Datei? `<script>`-Tag in `app.html` an der passenden Stelle ergänzen.
 
 Hostinger zieht dieses Repository automatisch (hPanel → Erweitert → Git).
 Jeder Push auf `main` geht live.
+
+Weil dort kein Build-Schritt läuft, muss das fertige Bundle im Repo liegen.
+`.github/workflows/frontend.yml` erledigt das: bei Änderungen unter
+`frontend/` prüft es Typen, Tests und Lint, baut nach `app/` und committet
+das Ergebnis zurück. Ein roter Test geht nie live.
 
 ## Backend
 

@@ -10,6 +10,28 @@ const BASE = '/app/'
 
 export default defineConfig({
   base: BASE,
+  // Hostinger liefert das Repo-Verzeichnis direkt aus, deshalb muss der Build
+  // im Repo landen: Quelle in frontend/, Ergebnis in app/ (= pawkin.eu/app/).
+  // Erzeugt und committet wird das ausschliesslich von der GitHub Action.
+  build: {
+    outDir: '../app',
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Vendor vom App-Code trennen: ein Update an unseren Screens laedt
+        // dann nicht Supabase und React erneut mit herunter. Zaehlt bei einer
+        // PWA doppelt, weil der Service Worker jede Datei einzeln versioniert.
+        manualChunks: (id: string) => {
+          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler'))
+            return 'react'
+          if (id.includes('node_modules/@tanstack') || id.includes('node_modules/zod'))
+            return 'daten'
+          return undefined
+        },
+      },
+    },
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

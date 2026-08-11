@@ -1,0 +1,5 @@
+# Der Frontend-Build unter app/ wird von der GitHub Action erzeugt und
+# committet – Hostinger liefert ihn direkt aus. Nicht von Hand pflegen.
+frontend/node_modules
+frontend/dist
+.DS_Store
