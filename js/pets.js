@@ -283,7 +283,7 @@ window.openLogbook = async (petId) => {
       <div style="font-size:20px">${e.icon}</div>
       <div style="min-width:0;font-size:12.5px;line-height:1.5">
         <b style="font-size:11px;color:var(--muted)">${new Date(e.at).toLocaleString('de-AT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${esc(e.who||'')}</b><br>${esc(e.body)}
-        ${e.photo?`<img src="${e.photo}" style="max-width:100%;border-radius:10px;margin-top:6px">`:''}
+        ${e.photo?`<img src="${esc(e.photo)}" style="max-width:100%;border-radius:10px;margin-top:6px">`:''}
       </div>
     </div>`).join('') : '<div class="empty">Noch keine Einträge.<br>Jede Betreuung schreibt hier automatisch Geschichte – Fütterungen, Medikamente, Vorfälle, Notizen.</div>');
 };

@@ -53,7 +53,7 @@ async function loadConv(){
     if(m.is_system) return `<div class="msg sys">${esc(m.body)}</div>`;
     const mine = m.sender_id===me.id;
     const time = new Date(m.created_at).toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="msg ${mine?'me':'them'}">${m.photo_url?`<img src="${m.photo_url}">`:''}${esc(m.body)}<span class="t">${time}</span></div>`;
+    return `<div class="msg ${mine?'me':'them'}">${m.photo_url?`<img src="${esc(m.photo_url)}">`:''}${esc(m.body)}<span class="t">${time}</span></div>`;
   }).join('')||'<div class="empty">Schreib die erste Nachricht 🐾</div>';
   window.scrollTo(0, document.body.scrollHeight);
 }
