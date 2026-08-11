@@ -145,28 +145,15 @@ window.inviteClient = () => {
     '<button class="ghost" onclick="closeSheet()">Schließen</button>';
   $('ov').classList.add('show');
 };
+// Der Sitter bekommt dieselbe Aufbereitung wie die Vorschau des Halters:
+// Warnungen, Fütterung und Notfall zuerst, Hintergrund weggeklappt.
+// Leere Angaben fallen weg, statt als "–" Platz zu belegen.
 window.showPetSheet = (p) => {
+  const ex = p.extra||{};
+  const kopf = [p.breed, ex.weight?ex.weight+' kg':'', calcAge(ex.birthdate)].filter(Boolean).join(' · ');
   $('sheet').innerHTML = `<h3>${p.species==='dog'?'🐕':'🐈'} ${esc(p.name)}</h3>
-    <div class="section" style="box-shadow:none;border:1px solid var(--line)">
-      <div class="svcrow"><span>Rasse/Art</span><b>${esc(p.breed||'–')}</b></div>
-      <div class="svcrow"><span>Infos</span><b>${esc(p.info||'–')}</b></div>
-      <div class="svcrow"><span>Impfungen</span><b>${esc(p.vaccinations||'–')}</b></div>
-      <div class="svcrow"><span>Medikation</span><b>${esc(p.medication||'–')}</b></div>
-      <div class="svcrow"><span>Futter</span><b>${esc(p.food||'–')}</b></div>
-      <div class="svcrow"><span>Eigenheiten</span><b>${esc(p.quirks||'–')}</b></div>
-      <div class="svcrow"><span>Tierarzt</span><b>${esc(p.vet_contact||'–')}</b></div>
-      <div class="svcrow"><span>Notfall</span><b>${esc(p.emergency_contact||'–')}</b></div>
-    </div>
-    ${(p.needs||[]).length?`<div class="stags" style="margin-bottom:10px">${p.needs.map(n=>`<span class="tag">${NEED_LABELS[n]||n}</span>`).join('')}</div>`:''}
-    ${(function(){
-      const ex = p.extra||{}; let out='';
-      for(const g of EXTRA_GROUPS){
-        const rows = g.fields.filter(f=>ex[f[0]]);
-        if(rows.length) out += `<div class="section" style="box-shadow:none;border:1px solid var(--line)"><h3 style="font-size:13px">${g.title}</h3>`+
-          rows.map(f=>`<div class="svcrow"><span>${f[1]}</span><b>${esc(ex[f[0]])}</b></div>`).join('')+`</div>`;
-      }
-      return out;
-    })()}
+    ${kopf?`<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px">${esc(kopf)}</p>`:''}
+    ${careCardsHtml(p)}
     <button class="ghost" onclick="closeSheet()">Schließen</button>`;
   $('ov').classList.add('show');
 };

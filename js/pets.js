@@ -1,10 +1,5 @@
 // ---------- Tiere ----------
-window.addMedRow = () => {
-  const div = document.createElement('div');
-  div.className = 'medrow'; div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
-  div.innerHTML = '<input class="m-name" placeholder="Medikament" style="flex:2"><input class="m-dose" placeholder="Dosis" style="flex:1.5"><input class="m-times" placeholder="Zeiten" style="flex:1.5"><button onclick="this.parentNode.remove()" style="border:none;background:none;color:#C66;font-size:16px;cursor:pointer">✕</button>';
-  $('medRows').appendChild(div);
-};
+window.addMedRow = () => $('medRows').insertAdjacentHTML('beforeend', medRowHtml());
 async function loadDocs(petId){
   const {data} = await sb.from('pet_docs').select('*').eq('pet_id', petId).order('created_at');
   const el = $('docList'); if(!el) return;
@@ -54,6 +49,13 @@ function vaccWarn(p){
   if(days <= 60) return `<span class="tag" style="background:#FDF3DE;color:#B27B0A">💉 Impfung fällig in ${days} Tagen</span>`;
   return '';
 }
+// Zeigt offen, ob ein Sitter mit diesem Profil arbeiten könnte. Blockiert nichts –
+// wer nichts ausfüllt, kann trotzdem buchen, sieht aber woran es fehlt.
+function readyTag(p){
+  const r = careReady(p);
+  if(!r.gaps.length) return `<span class="tag" style="background:var(--brand-light);color:var(--brand-dark)">✓ Sitter-bereit</span>`;
+  return `<span class="tag" style="background:#FDF3DE;color:#B27B0A">${r.done}/${r.total} · fehlt: ${esc(r.gaps[0].label)}${r.gaps.length>1?' +'+(r.gaps.length-1):''}</span>`;
+}
 function renderPets(){
   if(!state.pets.length){$('petlist').innerHTML='<div class="empty">Noch kein Tier angelegt.<br>Das Tierprofil wird bei jeder Anfrage automatisch an den Sitter übermittelt.</div>';return;}
   $('petlist').innerHTML = state.pets.map(p=>{
@@ -64,7 +66,7 @@ function renderPets(){
         <div class="avatar" style="font-size:26px">${p.species==='dog'?'🐕':'🐈'}</div>
         <div style="min-width:0"><div class="sname">${esc(p.name)}${own?'':' <span class="tag" style="font-size:9.5px">👨‍👩‍👧 geteilt</span>'}</div>
           <div class="smeta">${esc(p.breed||'')} · ${esc(p.info||'')}</div>
-          <div class="stags">${vaccWarn(p)}${(p.meds||[]).length?`<span class="tag">💊 ${p.meds.length} Medikament${p.meds.length>1?'e':''}</span>`:''}${(p.needs||[]).slice(0,2).map(n=>`<span class="tag">${NEED_LABELS[n]}</span>`).join('')}</div>
+          <div class="stags">${readyTag(p)}${vaccWarn(p)}${(p.meds||[]).length?`<span class="tag">💊 ${p.meds.length} Medikament${p.meds.length>1?'e':''}</span>`:''}${(p.needs||[]).slice(0,2).map(n=>`<span class="tag">${NEED_LABELS[n]}</span>`).join('')}</div>
         </div>
         ${own?'<div class="sprice" style="align-self:center">✏️</div>':''}
       </div>
@@ -118,9 +120,10 @@ window.redeemCode = async () => {
 };
 window.openChecklist = (petId) => {
   const p = state.pets.find(x=>x.id===petId); const ex = p.extra||{};
+  const f = feedLine(p);
   const items = [
-    ['🥣', 'Futter abgemessen'+(ex.feeding?' ('+ex.feeding+')':'')+' + Reserve'],
-    ['🦴', 'Leckerlis'+(ex.treats?' – Regel: '+ex.treats:'')],
+    ['🥣', 'Futter abgemessen'+(f.head?' ('+f.head+')':'')+' + Reserve'],
+    ['🦴', 'Leckerlis'+(ex.treats_ok?' – Regel: '+ex.treats_ok:'')],
     ...(p.meds||[]).map(m=>['💊', `${m.name} ${m.dose} – Zeiten: ${(m.times||[]).join(', ')} (Originalverpackung!)`]),
     p.species==='dog'?['🦮','Leine, Geschirr, Halsband + Ersatzleine']:['📦','Transportbox'],
     ['📄','Impfpass / Heimtierausweis'+(''+(p.vaccinations?' ('+p.vaccinations+')':''))],
@@ -150,8 +153,18 @@ window.openCareOwner = async (petId) => {
   const {data:givenToday} = await sb.from('med_log').select('med_name, due_label').eq('pet_id', pet.id).gte('given_at', today+'T00:00:00');
   const isGiven = (name, t) => (givenToday||[]).some(g=>g.med_name===name && g.due_label===t);
   const medRows = (pet.meds||[]).flatMap(m=>(m.times&&m.times.length?m.times:['heute']).map(t=>({m, t})));
+  // Füttern ist die häufigste Aufgabe des Tages – die stand hier bisher nicht drin.
+  const {data:fedToday} = await sb.from('pet_log').select('body, created_at').eq('pet_id', pet.id).eq('type','feed').gte('created_at', today+'T00:00:00');
+  const f = feedLine(pet);
   $('sheet').innerHTML = `
-    <h3>💊 Heute: ${pet.species==='dog'?'🐕':'🐈'} ${esc(pet.name)}</h3>
+    <h3>Heute: ${pet.species==='dog'?'🐕':'🐈'} ${esc(pet.name)}</h3>
+    <div class="section" style="box-shadow:none;border:1px solid var(--line)">
+      <h3 style="font-size:13px">🥣 Fütterung</h3>
+      ${f.head||f.what?`<div style="font-size:13px;line-height:1.5;margin-bottom:8px">${f.head?`<b>${esc(f.head)}</b><br>`:''}${esc(f.what||'')}${f.times?`<br><span style="color:var(--muted)">Zeiten: ${esc(f.times)}</span>`:''}</div>`
+        :'<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Noch kein Fütterungsplan hinterlegt – trag ihn im Tierprofil ein.</p>'}
+      <div class="svcrow"><span>Heute schon gefüttert</span><b>${(fedToday||[]).length}×</b></div>
+      <button class="primary" style="margin-top:8px" onclick="logFeed('${petId}')">🥣 Fütterung abhaken</button>
+    </div>
     ${medRows.length?`<div class="section" style="box-shadow:none;border:1px solid var(--line)">
       <h3 style="font-size:13px">Medikamente heute</h3>
       ${medRows.map((r,i)=>{
@@ -159,7 +172,9 @@ window.openCareOwner = async (petId) => {
         return `<div class="svcrow"><span>${esc(r.t)} · ${esc(r.m.name)} ${esc(r.m.dose)}</span>
           ${done?'<b style="color:var(--brand)">✓ gegeben</b>':`<button id="omed_${i}" onclick="giveMedOwn('${petId}','${esc(r.m.name)}','${esc(r.m.dose)}','${esc(r.t)}',${i})" style="border:none;background:var(--brand);color:#fff;border-radius:99px;padding:6px 12px;font-size:11.5px;font-weight:800;cursor:pointer">✓ Gegeben</button>`}
         </div>`;}).join('')}
-    </div>`:'<p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Kein Medikationsplan hinterlegt – leg ihn im Tierprofil an, dann kannst du (und jeder Sitter) Gaben hier abhaken.</p>'}
+    </div>`:(pet.extra?.health_status==='condition'
+      ?'<p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Als krank markiert, aber kein Medikationsplan hinterlegt – trag ihn im Tierprofil ein, dann kann jeder Sitter die Gaben abhaken.</p>'
+      :'')}
     <div class="section" style="box-shadow:none;border:1px solid var(--line)">
       <h3 style="font-size:13px">⚖️ Gewicht erfassen</h3>
       <div style="display:flex;gap:8px">
@@ -187,6 +202,15 @@ window.giveMedOwn = async (petId, name, dose, label, i) => {
   if(error){toast('Fehler: '+error.message);return;}
   const btn = $('omed_'+i); if(btn) btn.outerHTML = '<b style="color:var(--brand)">✓ gegeben</b>';
   toast('Abgehakt ✓ – steht im Logbuch');
+};
+window.logFeed = async (petId) => {
+  const pet = state.pets.find(x=>x.id===petId);
+  const f = pet ? feedLine(pet) : {head:'',what:''};
+  const body = [f.head, f.what].filter(Boolean).join(' · ') || 'gefüttert';
+  const {error} = await sb.from('pet_log').insert({pet_id: petId, author_id: me.id, type:'feed', body});
+  if(error){toast('Fehler: '+error.message);return;}
+  toast('🥣 Fütterung abgehakt');
+  openCareOwner(petId);
 };
 window.saveWeight = async (petId) => {
   const v = parseFloat($('oWeight').value.replace(',','.'));
@@ -263,130 +287,226 @@ window.openLogbook = async (petId) => {
       </div>
     </div>`).join('') : '<div class="empty">Noch keine Einträge.<br>Jede Betreuung schreibt hier automatisch Geschichte – Fütterungen, Medikamente, Vorfälle, Notizen.</div>');
 };
-const EXTRA_GROUPS = [
-  {title:'🩺 Gesundheit', fields:[
-    ['allergies','Allergien / Unverträglichkeiten','z. B. Getreide, Bienenstiche'],
-    ['neutered','Kastriert / sterilisiert','ja / nein'],
-    ['chip','Chip-Nummer',''],
-    ['insurance','Tierkrankenversicherung','Anbieter + Polizzennummer']]},
-  {title:'🍽️ Ernährung & Routine', fields:[
-    ['feeding','Fütterungszeiten','z. B. 7:00 und 18:00'],
-    ['treats','Leckerlis erlaubt?','was und wie viel'],
-    ['likes','Lieblings-Obst & -Gemüse','z. B. Karotten, Gurke, Apfel (ohne Kerne)'],
-    ['nofood','Verbotene Lebensmittel','z. B. alles Gewürzte, Käse – zusätzlich zu den üblichen Tabus'],
-    ['alone','Alleinsein','wie lange geht gut?']]},
-  {title:'🦮 Gassi & Draußen', fields:[
-    ['walktimes','Gassi-Zeiten','z. B. 7:00 kurz, 13:00 große Runde, 21:00 Pipirunde'],
-    ['watchout','Worauf aufpassen?','z. B. reagiert auf andere Rüden, jagt Katzen'],
-    ['leash','Leinenverhalten','z. B. zieht anfangs stark, bitte Geschirr statt Halsband'],
-    ['offleash','Freilauf erlaubt?','z. B. nur in eingezäunten Zonen, Rückruf unsicher'],
-    ['scavenge','Frisst vom Boden?','z. B. ja, leider – Achtung Giftköder!'],
-    ['pickup','Wenn er etwas ins Maul nimmt','z. B. ruhig bleiben, „Aus!“-Kommando, gegen Leckerli tauschen – nie hinterherjagen oder aus dem Maul reißen']]},
-  {title:'🎾 Spiel & Beschäftigung', fields:[
-    ['games','Lieblingsspiele','z. B. Ball holen, Zergel, Suchspiele, Intelligenzspielzeug'],
-    ['games_how','So funktionieren sie','z. B. Ball immer gegen Leckerli tauschen, nie aus dem Maul nehmen; Suchspiel: Leckerli verstecken, „Such!“ sagen'],
-    ['toys','Lieblingsspielzeug','was ist dabei / wo liegt es?'],
-    ['game_taboo','Was beim Spielen gar nicht geht','z. B. wildes Raufen, Jagdspiele – macht ihn zu wuschig']]},
-  {title:'🏠 Hausregeln & Erziehung', fields:[
-    ['table','Vom Tisch füttern?','z. B. niemals – auch wenn er bettelt!'],
-    ['bed','Bett & Sofa','z. B. Sofa ja, Bett tabu'],
-    ['sleep','Schlafplatz','z. B. eigenes Körbchen im Wohnzimmer'],
-    ['begging','Betteln & Hochspringen','wie reagieren? z. B. ignorieren, nicht schimpfen'],
-    ['other_rules','Weitere Regeln','was zuhause gilt, soll auch beim Sitter gelten']]},
-  {title:'🧠 Verhalten & Soziales', fields:[
-    ['dogs_ok','Verhalten mit Hunden','entspannt / wählerisch / lieber nicht'],
-    ['cats_ok','Verhalten mit Katzen',''],
-    ['kids_ok','Verhalten mit Kindern',''],
-    ['fears','Ängste & Trigger','z. B. Gewitter, Staubsauger, Männer mit Hut'],
-    ['commands','Bekannte Kommandos (antippen)','','chips'],
-    ['commands_other','Weitere Kommandos & Signale','z. B. Pfeife für Rückruf, Handzeichen für Platz']]},
-  {title:'🚨 Notfall-Vollmachten', fields:[
-    ['vet_ok','Tierarztbesuch erlaubt?','ja, im Zweifel immer'],
-    ['budget','Notfall-Budget','bis zu welchem Betrag darf ohne Rückfrage behandelt werden?']]},
-];
-const COMMANDS = ['Sitz','Platz','Bleib','Hier / Komm','Aus','Nein','Warte','Fuß','Pfote','Such','Ins Körbchen','Dreh dich'];
+// ---------- Tier anlegen / bearbeiten ----------
+// Aufbau folgt der Wichtigkeit für den Sitter, nicht der Datenbank:
+// Steckbrief → Fütterung → Gesundheit → Notfall → Sicherheit → Tierart → Rest.
+// Gesperrt wird nichts; fehlende Kernangaben werden oben offen benannt.
+const fGrp = (id, title, inner, open) =>
+  `<details class="grp" id="${id}"${open?' open':''}><summary>${title}</summary><div class="inner">${inner}</div></details>`;
+const fFld = (label, inner, hint) =>
+  `<div class="fld"><label>${label}</label>${inner}${hint?`<p style="font-size:11px;color:var(--muted);margin-top:4px">${hint}</p>`:''}</div>`;
+const fInp = (k, val, ph) => `<input class="pextra" data-k="${k}" value="${esc(val||'')}" placeholder="${ph||''}">`;
+const fChips = (k, opts, cur) =>
+  `<div class="chips pchips" data-k="${k}">${opts.map(o=>`<span class="chip ${cur===o?'on':''}" data-v="${esc(o)}">${esc(o)}</span>`).join('')}</div>`;
+
 window.openPetForm = (p) => {
-  const isNew = !p; p = p||{species:'dog', needs:[], extra:{}};
+  // Kein p oder eins ohne id = neues Tier. Die Vorschau kommt mit einem
+  // unvollständigen Entwurf zurück, deshalb reicht "!p" hier nicht.
+  const isNew = !p || !p.id;
+  p = p||{species:'dog', needs:[], extra:{}};
+  window.__petId = p.id;
   const ex = p.extra||{};
-  const grpHtml = EXTRA_GROUPS.map((g,gi)=>{
-    const filled = g.fields.filter(f=>ex[f[0]]).length;
-    return `<details class="grp"${filled?' open':''}><summary>${g.title}${filled?` <span style="color:var(--brand);font-size:11px;font-weight:700;margin-left:auto;margin-right:8px">${filled} ausgefüllt</span>`:''}</summary><div class="inner">`+
-      g.fields.map(f=>{
-        if(f[3]==='chips'){
-          const sel = (ex[f[0]]||'').split(', ').filter(Boolean);
-          return `<div class="fld"><label>${f[1]}</label><div class="stags cmdchips" data-k="${f[0]}">${COMMANDS.map(c=>`<span class="tag ${sel.includes(c)?'':'off'}" data-c="${c}" style="cursor:pointer;font-size:12px;padding:7px 11px">${c}</span>`).join('')}</div></div>`;
-        }
-        return `<div class="fld"><label>${f[1]}</label><input class="pextra" data-k="${f[0]}" value="${esc(ex[f[0]]||'')}" placeholder="${f[2]}"></div>`;
-      }).join('')+
-    `</div></details>`;
-  }).join('');
+  const nm = p.name || 'dein Tier';
+  const warns = (ex.warn||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const sick = ex.health_status === 'condition' || (p.meds||[]).length > 0;
+
+  // 1 · Steckbrief
+  const gBasic = fFld('Name *', `<input id="pName" value="${esc(p.name||'')}">`) +
+    fFld('Tierart *', `<div class="petpick">
+      <div class="petopt ${p.species==='dog'?'on':''}" data-sp="dog"><span class="e">🐕</span>Hund</div>
+      <div class="petopt ${p.species==='cat'?'on':''}" data-sp="cat"><span class="e">🐈</span>Katze</div></div>`) +
+    `<div style="display:flex;gap:10px">
+      <div style="flex:1">${fFld('Gewicht (kg)', `<input id="pWeight" type="number" step="0.1" min="0" value="${esc(ex.weight||'')}" placeholder="z. B. 28">`)}</div>
+      <div style="flex:1">${fFld('Geburtstag', `<input id="pBirth" type="date" value="${esc(ex.birthdate||'')}">`)}</div>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Das Gewicht hilft dem Sitter, die Futtermenge und Medikamenten-Dosis einzuordnen.</p>` +
+    fFld('Rasse', `<input id="pBreed" list="breedlist" value="${esc(p.breed||'')}" placeholder="z. B. Labrador-Mix">`) +
+    // Steuert, welche Sitter gefunden werden. "Medikamentengabe" fragen wir
+    // nicht mehr ab – das ergibt sich aus dem Gesundheits-Abschnitt.
+    fFld('Was muss dein Sitter können?',
+      `<div class="chips" id="pNeeds">${Object.keys(NEED_LABELS).filter(n=>n!=='med').map(n=>
+        `<span class="chip ${p.needs?.includes(n)?'on':''}" data-n="${n}">${NEED_LABELS[n]}</span>`).join('')}</div>`);
+
+  // 2 · Fütterung – der Alltag. Früher ein einziges Freitextfeld.
+  const gFeed =
+    fFld('Was bekommt ' + esc(nm) + '?', fInp('food_what', careVal(p,'food_what'), 'z. B. Royal Canin Adult, trocken')) +
+    `<div style="display:flex;gap:10px">
+      <div style="flex:1">${fFld('Menge pro Mahlzeit', fInp('food_amount', ex.food_amount, 'z. B. 200'))}</div>
+      <div style="flex:1">${fFld('Einheit', fChips('food_unit', FEED_UNITS, ex.food_unit||'g'))}</div>
+    </div>` +
+    fFld('Wie oft am Tag?', fChips('food_freq', FEED_FREQ, ex.food_freq)) +
+    fFld('Um welche Zeit?', fInp('food_times', careVal(p,'food_times'), 'z. B. 7:00 und 18:00')) +
+    fFld('Leckerli erlaubt?', fChips('treats_ok', TREAT_RULE, ex.treats_ok)) +
+    fFld('Verboten / Unverträglichkeiten', fInp('food_forbidden', ex.food_forbidden || ex.allergies || ex.nofood, 'z. B. Getreide, alles Gewürzte'),
+        'Wird dem Sitter als Warnung angezeigt.') +
+    fFld('Wo steht das Futter?', fInp('food_where', ex.food_where, 'z. B. Speis, linkes Regal'),
+        'Klingt banal – ist für den Sitter am ersten Tag Gold wert.');
+
+  // 3 · Gesundheit mit Weiche: gesundes Tier bekommt den Medikationsplan gar nicht zu sehen.
+  const gHealth = fFld('Wie geht es ' + esc(nm) + '?', `<div class="petpick" id="pHealth">
+      <div class="petopt ${sick?'':'on'}" data-h="healthy" style="padding:11px 6px;font-size:12px"><span class="e" style="font-size:20px">💚</span>Gesund</div>
+      <div class="petopt ${sick?'on':''}" data-h="condition" style="padding:11px 6px;font-size:12px"><span class="e" style="font-size:20px">💊</span>Krank / Medikamente</div>
+    </div>`) +
+    `<div id="healthBox" style="display:${sick?'block':'none'}">` +
+      fFld('Was hat ' + esc(nm) + '?', fInp('condition', ex.condition, 'z. B. Epilepsie, Arthrose')) +
+      fFld('💊 Medikationsplan', `<div id="medRows">${(p.meds||[]).map(m=>medRowHtml(m)).join('')}</div>
+        <button class="askupd" style="margin-top:2px" onclick="addMedRow()">➕ Medikament hinzufügen</button>`,
+        'Zeiten mit Komma trennen, z. B. „8:00, 20:00“. Der Sitter hakt jede Gabe einzeln ab.') +
+      fFld('Wie wird es gegeben?', fInp('med_how', ex.med_how, 'z. B. in Leberwurst versteckt, nach dem Fressen')) +
+      fFld('Worauf soll der Sitter achten?', fInp('symptoms', ex.symptoms, 'z. B. Humpeln, viel Trinken')) +
+      fFld('Sofort zum Tierarzt bei', fInp('emergency_signs', ex.emergency_signs, 'z. B. Krampfanfall über 2 Minuten')) +
+    `</div>` +
+    fFld('Impfung gültig bis', `<input id="pVaccDue" type="date" value="${esc(ex.vacc_due||'')}">`) +
+    fFld('Impfungen (Details)', `<input id="pVacc" value="${esc(p.vaccinations||'')}" placeholder="z. B. Tollwut bis 03/2027">`);
+
+  // 4 · Notfall – aus der letzten Klappgruppe nach vorne geholt und aufgeteilt,
+  // damit der Sitter im Ernstfall auf eine Nummer tippen kann.
+  const gEmg =
+    fFld('Tierarzt – Name', fInp('vet_name', ex.vet_name || splitContact(p.vet_contact).name, 'z. B. Tierklinik Dr. Müller')) +
+    fFld('Tierarzt – Telefon', fInp('vet_phone', careVal(p,'vet_phone'), 'z. B. +43 660 1234567')) +
+    fFld('Tierarzt – Adresse', fInp('vet_address', ex.vet_address, 'Straße, Ort')) +
+    fFld('Notfallkontakt – Name', fInp('emg_name', ex.emg_name || splitContact(p.emergency_contact).name, 'jemand in der Nähe, der einspringen kann')) +
+    fFld('Notfallkontakt – Telefon', fInp('emg_phone', careVal(p,'emg_phone'), '')) +
+    fFld('Behandlung ohne Rückfrage bis (€)', fInp('vet_budget', ex.vet_budget || ex.budget, 'z. B. 500'),
+        'Ohne diese Freigabe muss der Sitter im Notfall auf deinen Rückruf warten.');
+
+  // 5 · Sicherheit: nur Risiken. Detailfeld erscheint erst, wenn angetippt.
+  const gSafe = fFld('Trifft etwas davon zu? (antippen)',
+    `<div class="chips" id="pWarn">${Object.entries(WARN_FLAGS).map(([k,l])=>
+      `<span class="chip ${warns.includes(k)?'on':''}" data-w="${k}">${l}</span>`).join('')}</div>`) +
+    `<div id="warnDetails">${warns.map(w=>warnDetailHtml(w, ex['warn_'+w])).join('')}</div>` +
+    fFld('Sonstige Eigenheiten', `<textarea id="pQuirks" rows="2" placeholder="was man sonst über ${esc(nm)} wissen sollte">${esc(p.quirks||'')}</textarea>`);
+
+  // 6 · Tierart-spezifisch
+  const spf = SPECIES_FIELDS[p.species] || SPECIES_FIELDS.dog;
+  const gSpecies = spf.map(f=>fFld(f[1], fInp(f[0], ex[f[0]], f[2]))).join('');
+
+  // 7 · Optionales
+  const gNice = NICE_GROUPS.map(g => fGrp('', g.title, g.fields.map(f=>{
+    if(f[3]==='chips'){
+      const sel = (ex[f[0]]||'').split(', ').filter(Boolean);
+      return fFld(f[1], `<div class="chips cmdchips" data-k="${f[0]}">${COMMANDS.map(c=>
+        `<span class="chip ${sel.includes(c)?'on':''}" data-c="${c}">${c}</span>`).join('')}</div>`);
+    }
+    return fFld(f[1], fInp(f[0], ex[f[0]], f[2]));
+  }).join(''))).join('');
+
   $('sheet').innerHTML = `
-    <h3>${isNew?'Tier anlegen':'Tier bearbeiten'}</h3>
-    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">Nur <b>Name und Tierart</b> sind Pflicht. Alles andere ist freiwillig – aber je mehr du ergänzt, desto besser kann sich dein Sitter kümmern.</p>
-    <div class="fld"><label>Name *</label><input id="pName" value="${esc(p.name||'')}"></div>
-    <div class="fld"><label>Tierart *</label>
-      <div class="petpick">
-        <div class="petopt ${p.species==='dog'?'on':''}" data-sp="dog"><span class="e">🐕</span>Hund</div>
-        <div class="petopt ${p.species==='cat'?'on':''}" data-sp="cat"><span class="e">🐈</span>Katze</div>
-      </div></div>
-    <div class="fld"><label>Rasse</label><input id="pBreed" list="breedlist" value="${esc(p.breed||'')}" placeholder="Tippen für Vorschläge, z. B. Labrador-Mix"></div>
-    <div style="display:flex;gap:10px">
-      <div class="fld" style="flex:1"><label>Geburtstag 🎂</label><input id="pBirth" type="date" value="${esc(p.extra?.birthdate||'')}"></div>
-      <div class="fld" style="flex:1"><label>Gewicht (kg)</label><input id="pWeight" type="number" step="0.1" min="0" value="${esc(p.extra?.weight||'')}" placeholder="z. B. 28"></div>
-    </div>
-    <div class="fld"><label>Betreuungs-Bedürfnisse (steuern das Matching)</label>
-      <div class="stags" id="pNeeds">${Object.keys(NEED_LABELS).map(n=>`<span class="tag ${p.needs?.includes(n)?'':'off'}" data-n="${n}" style="cursor:pointer;font-size:12px;padding:7px 11px">${NEED_LABELS[n]}</span>`).join('')}</div></div>
-    <div class="fld"><label>Impfungen</label><input id="pVacc" value="${esc(p.vaccinations||'')}" placeholder="z. B. Tollwut bis 03/2027"></div>
-    <div class="fld"><label>Nächste Impfauffrischung fällig (für Erinnerung)</label><input id="pVaccDue" type="date" value="${esc((p.extra||{}).vacc_due||'')}"></div>
-    <div class="fld"><label>💊 Medikationsplan (mit Uhrzeiten – Sitter hakt jede Gabe ab)</label>
-      <div id="medRows">${(p.meds||[]).map(m=>`<div class="medrow" style="display:flex;gap:6px;margin-bottom:6px"><input class="m-name" placeholder="Medikament" value="${esc(m.name)}" style="flex:2"><input class="m-dose" placeholder="Dosis" value="${esc(m.dose)}" style="flex:1.5"><input class="m-times" placeholder="Zeiten" value="${esc((m.times||[]).join(', '))}" style="flex:1.5"><button onclick="this.parentNode.remove()" style="border:none;background:none;color:#C66;font-size:16px;cursor:pointer">✕</button></div>`).join('')}</div>
-      <button class="askupd" style="margin-top:2px" onclick="addMedRow()">➕ Medikament hinzufügen</button>
-      <p style="font-size:11px;color:var(--muted);margin-top:4px">Zeiten mit Komma trennen, z. B. „8:00, 20:00“</p>
-    </div>
-    <div class="fld"><label>Sonstige Medikation / Hinweise</label><input id="pMed" value="${esc(p.medication||'')}" placeholder="z. B. keine"></div>
-    <div class="fld"><label>Futter</label><input id="pFood" value="${esc(p.food||'')}"></div>
-    <div class="fld"><label>Eigenheiten</label><textarea id="pQuirks" rows="2">${esc(p.quirks||'')}</textarea></div>
-    <div class="fld"><label>Tierarzt</label><input id="pVet" value="${esc(p.vet_contact||'')}"></div>
-    <div class="fld"><label>Notfallkontakt</label><input id="pEmg" value="${esc(p.emergency_contact||'')}"></div>
-    ${!isNew?`<div class="fld"><label>📄 Dokumente (Impfpass, Heimtierausweis, Befunde …)</label>
-      <div id="docList"><span style="font-size:12px;color:var(--muted)">Lade…</span></div>
-      <input type="file" id="docFile" style="display:none" onchange="uploadDoc('${p.id}')">
-      <button class="askupd" style="margin-top:6px" onclick="$('docFile').click()">📎 Dokument hochladen</button>
-      <p style="font-size:11px;color:var(--muted);margin-top:4px">Privat gespeichert – nur du und dein gebuchter Sitter können sie öffnen.</p>
-    </div>`:'<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">📄 Dokumente (Impfpass etc.) kannst du hochladen, sobald das Tier angelegt ist.</p>'}
-    <p style="font-size:12.5px;font-weight:700;color:var(--muted);margin:14px 0 8px">Mehr Details (alles optional):</p>
-    ${grpHtml}
+    <h3>${isNew?'Tier anlegen':esc(p.name)+' bearbeiten'}</h3>
+    <div id="readyBox"></div>
+    ${fGrp('g-basic','🐾 Steckbrief', gBasic, true)}
+    ${fGrp('g-feed','🥣 Fütterung', gFeed, true)}
+    ${fGrp('g-health','🩺 Gesundheit', gHealth, sick)}
+    ${fGrp('g-emg','🚨 Notfall', gEmg, true)}
+    ${fGrp('g-safe','⚠️ Sicherheit & Verhalten', gSafe, warns.length>0)}
+    ${fGrp('g-species', p.species==='cat'?'🚽 Katzenklo & Freigang':'🦮 Gassi & Draußen', gSpecies)}
+    <p style="font-size:12px;color:var(--muted);margin:14px 0 8px">Alles Weitere ist freiwillig – schön für den Sitter, aber nichts geht schief, wenn es fehlt.</p>
+    ${gNice}
+    ${!isNew?fFld('📄 Dokumente (Impfpass, Befunde …)',
+      `<div id="docList"><span style="font-size:12px;color:var(--muted)">Lade…</span></div>
+       <input type="file" id="docFile" style="display:none" onchange="uploadDoc('${p.id}')">
+       <button class="askupd" style="margin-top:6px" onclick="$('docFile').click()">📎 Dokument hochladen</button>`,
+      'Privat gespeichert – nur du und dein gebuchter Sitter können sie öffnen.')
+     :'<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">📄 Dokumente kannst du hochladen, sobald das Tier angelegt ist.</p>'}
+    <button class="askupd" style="width:100%;margin-bottom:8px" onclick="previewSitterView()">👀 So sieht es dein Sitter</button>
     <button class="primary" id="pSave">${isNew?'Anlegen':'Speichern'}</button>
     <button class="ghost" onclick="closeSheet()">Abbrechen</button>`;
+
   if(!isNew) loadDocs(p.id);
-  $('sheet').querySelectorAll('.petopt').forEach(el=>el.onclick=()=>{$('sheet').querySelectorAll('.petopt').forEach(x=>x.classList.remove('on'));el.classList.add('on');});
-  $('pNeeds').querySelectorAll('.tag').forEach(t=>t.onclick=()=>t.classList.toggle('off'));
-  $('sheet').querySelectorAll('.cmdchips .tag').forEach(t=>t.onclick=()=>t.classList.toggle('off'));
-  $('pSave').onclick = async () => {
+
+  // Tierart wechseln blendet den passenden Alltags-Block ein.
+  $('sheet').querySelectorAll('.petopt[data-sp]').forEach(el=>el.onclick=()=>{
+    $('sheet').querySelectorAll('.petopt[data-sp]').forEach(x=>x.classList.remove('on'));
+    el.classList.add('on');
+    const sp = el.dataset.sp, g = $('g-species');
+    g.querySelector('summary').textContent = sp==='cat'?'🚽 Katzenklo & Freigang':'🦮 Gassi & Draußen';
+    g.querySelector('.inner').innerHTML = SPECIES_FIELDS[sp].map(f=>fFld(f[1], fInp(f[0], (p.extra||{})[f[0]], f[2]))).join('');
+  });
+  // Gesundheits-Weiche
+  $('pHealth').querySelectorAll('.petopt').forEach(el=>el.onclick=()=>{
+    $('pHealth').querySelectorAll('.petopt').forEach(x=>x.classList.remove('on'));
+    el.classList.add('on');
+    $('healthBox').style.display = el.dataset.h==='condition' ? 'block' : 'none';
+  });
+  // Einfach-Auswahl-Chips
+  $('sheet').querySelectorAll('.pchips').forEach(box=>box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    const was = c.classList.contains('on');
+    box.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+    if(!was) c.classList.add('on');
+    updateReady();
+  }));
+  // Mehrfachauswahl-Chips (Kommandos, Sitter-Anforderungen)
+  $('sheet').querySelectorAll('.cmdchips .chip, #pNeeds .chip').forEach(c=>c.onclick=()=>c.classList.toggle('on'));
+  // Warn-Chips blenden ihr Detailfeld ein bzw. aus
+  $('pWarn').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    c.classList.toggle('on');
+    const k = c.dataset.w, box = $('warnDetails'), cur = box.querySelector(`[data-wd="${k}"]`);
+    if(c.classList.contains('on')){ if(!cur) box.insertAdjacentHTML('beforeend', warnDetailHtml(k,'')); }
+    else if(cur) cur.remove();
+  });
+  $('sheet').querySelectorAll('input,textarea').forEach(i=>i.addEventListener('input', updateReady));
+
+  function collect(){
     const rec = {
       owner_id: me.id,
       name: $('pName').value.trim(),
-      species: $('sheet').querySelector('.petopt.on')?.dataset.sp||'dog',
+      species: $('sheet').querySelector('.petopt[data-sp].on')?.dataset.sp||'dog',
       breed: $('pBreed').value.trim(),
-      info: [calcAge($('pBirth').value), $('pWeight').value.trim() ? $('pWeight').value.trim()+' kg' : ''].filter(Boolean).join(' · '),
-      needs: [...$('pNeeds').querySelectorAll('.tag:not(.off)')].map(t=>t.dataset.n),
-      vaccinations: $('pVacc').value.trim(), medication: $('pMed').value.trim(),
-      food: $('pFood').value.trim(), quirks: $('pQuirks').value.trim(),
-      vet_contact: $('pVet').value.trim(), emergency_contact: $('pEmg').value.trim(),
-      extra: Object.fromEntries(Array.from($('sheet').querySelectorAll('.pextra')).map(i=>[i.dataset.k, i.value.trim()]).filter(kv=>kv[1]))
+      info: [calcAge($('pBirth').value), $('pWeight').value.trim()?$('pWeight').value.trim()+' kg':''].filter(Boolean).join(' · '),
+      needs: [...$('pNeeds').querySelectorAll('.chip.on')].map(t=>t.dataset.n),
+      vaccinations: $('pVacc').value.trim(),
+      quirks: $('pQuirks').value.trim(),
+      extra: Object.assign({}, p.extra||{})
     };
-    $('sheet').querySelectorAll('.cmdchips').forEach(el=>{
-      const sel = Array.from(el.querySelectorAll('.tag:not(.off)')).map(t=>t.dataset.c);
-      if(sel.length) rec.extra[el.dataset.k] = sel.join(', ');
+    $('sheet').querySelectorAll('.pextra').forEach(i=>{
+      const v = i.value.trim();
+      if(v) rec.extra[i.dataset.k] = v; else delete rec.extra[i.dataset.k];
     });
+    $('sheet').querySelectorAll('.pchips').forEach(box=>{
+      const on = box.querySelector('.chip.on');
+      if(on) rec.extra[box.dataset.k] = on.dataset.v; else delete rec.extra[box.dataset.k];
+    });
+    $('sheet').querySelectorAll('.cmdchips').forEach(box=>{
+      const sel = [...box.querySelectorAll('.chip.on')].map(t=>t.dataset.c);
+      if(sel.length) rec.extra[box.dataset.k] = sel.join(', '); else delete rec.extra[box.dataset.k];
+    });
+    const healthy = $('pHealth').querySelector('.petopt.on')?.dataset.h !== 'condition';
+    rec.extra.health_status = healthy ? 'healthy' : 'condition';
+    const w = [...$('pWarn').querySelectorAll('.chip.on')].map(c=>c.dataset.w);
+    if(w.length) rec.extra.warn = w.join(','); else delete rec.extra.warn;
     if($('pVaccDue').value) rec.extra.vacc_due = $('pVaccDue').value;
     if($('pBirth').value) rec.extra.birthdate = $('pBirth').value;
     if($('pWeight').value.trim()) rec.extra.weight = $('pWeight').value.trim();
-    rec.meds = Array.from($('medRows').querySelectorAll('.medrow')).map(r=>({
+    // Gesundes Tier: keine Medikamente mitschleppen.
+    rec.meds = healthy ? [] : [...$('medRows').querySelectorAll('.medrow')].map(r=>({
       name: r.querySelector('.m-name').value.trim(),
       dose: r.querySelector('.m-dose').value.trim(),
       times: r.querySelector('.m-times').value.split(',').map(t=>t.trim()).filter(Boolean)
     })).filter(m=>m.name);
+    // "Braucht Medikamentengabe" ergibt sich aus dem Plan – nicht nochmal fragen.
+    if(!healthy || rec.meds.length) rec.needs = [...new Set([...rec.needs,'med'])];
+    // Altschlüssel sind in die neuen Felder vorbefüllt worden und wären sonst
+    // eine zweite, veraltete Wahrheit.
+    ['feeding','allergies','nofood','treats','budget'].forEach(k=>delete rec.extra[k]);
+    // Die alten Textspalten weiter mitschreiben, damit nichts verloren geht.
+    rec.food = rec.extra.food_what || '';
+    rec.vet_contact = [rec.extra.vet_name, rec.extra.vet_phone].filter(Boolean).join(' · ');
+    rec.emergency_contact = [rec.extra.emg_name, rec.extra.emg_phone].filter(Boolean).join(' · ');
+    rec.medication = (rec.meds||[]).map(m=>`${m.name} ${m.dose}`).join(', ');
+    return rec;
+  }
+  window.__collectPet = collect;
+
+  function updateReady(){
+    const r = careReady(collect());
+    $('readyBox').innerHTML = r.gaps.length
+      ? `<div class="note" style="margin:0 0 12px"><b>${r.done} von ${r.total} Kernangaben</b> – dein Sitter hätte gern noch:<br>${r.gaps.map(g=>esc(g.label)).join(' · ')}</div>`
+      : `<div class="note g" style="margin:0 0 12px"><b>✓ Sitter-bereit</b> – alles Wichtige für den Alltag ist da.</div>`;
+  }
+  updateReady();
+
+  $('pSave').onclick = async () => {
+    const rec = collect();
     if(!rec.name){toast('Bitte einen Namen angeben');return;}
     const q = isNew ? sb.from('pets').insert(rec) : sb.from('pets').update(rec).eq('id', p.id);
     const {error} = await q;
@@ -397,3 +517,27 @@ window.openPetForm = (p) => {
   $('ov').classList.add('show');
 };
 
+function medRowHtml(m){
+  m = m||{name:'',dose:'',times:[]};
+  return `<div class="medrow" style="display:flex;gap:6px;margin-bottom:6px">
+    <input class="m-name" placeholder="Medikament" value="${esc(m.name)}" style="flex:2">
+    <input class="m-dose" placeholder="Dosis" value="${esc(m.dose)}" style="flex:1.5">
+    <input class="m-times" placeholder="Zeiten" value="${esc((m.times||[]).join(', '))}" style="flex:1.5">
+    <button onclick="this.parentNode.remove()" style="border:none;background:none;color:#C66;font-size:16px;cursor:pointer">✕</button></div>`;
+}
+function warnDetailHtml(k, v){
+  return `<div class="fld" data-wd="${k}"><label>${WARN_FLAGS[k]||k} – was genau?</label>
+    <input class="pextra" data-k="warn_${k}" value="${esc(v||'')}" placeholder="z. B. beim Fressen nicht anfassen"></div>`;
+}
+// Der Halter soll sehen, was beim Sitter ankommt – das beantwortet
+// „reicht das?“ besser als jeder Fortschrittsbalken.
+window.previewSitterView = () => {
+  const rec = window.__collectPet ? window.__collectPet() : null; if(!rec) return;
+  const draft = Object.assign({}, rec, {id: window.__petId});
+  $('sheet').innerHTML = `<h3>👀 So sieht ${esc(rec.name||'dein Tier')} beim Sitter aus</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Ungespeicherter Stand – genau diese Ansicht bekommt der Sitter.</p>
+    ${careCardsHtml(draft)}
+    <button class="primary" id="pBack">Zurück zum Bearbeiten</button>`;
+  // Der Entwurf trägt alle Eingaben, das Formular baut sich daraus neu auf.
+  $('pBack').onclick = () => openPetForm(draft);
+};
