@@ -73,6 +73,31 @@ const SPECIES_FIELDS = {
   ],
 };
 
+// ---------- Übergabe ----------
+// Am ersten Tag ist "wo liegt was?" wichtiger als jede Charaktereigenschaft.
+// Profi-Betreuungssoftware erfasst genau das; hier fehlte es bisher.
+// Erfasst wird jeder Schlüssel GENAU EINMAL – food_where steht in der
+// Fütterungsgruppe, litter_where beim Katzenklo. Die Übergabe-Karte zeigt
+// sie trotzdem mit an, weil sie beim Ankommen zusammen gebraucht werden.
+const HANDOVER_FORM = {
+  common: [
+    ['docs_where','Impfpass & Papiere','z. B. Schublade Flur, oben'],
+    ['keys_where','Schlüssel & Zugang','z. B. Ersatzschlüssel bei Nachbarin Anna, Tür 4'],
+    ['carrier_where','Transportbox','z. B. Keller, Regal rechts'],
+    ['where_other','Sonstiges','z. B. Alarmanlage: Code 1234 beim Reingehen'],
+  ],
+  dog: [['leash_where','Leine, Geschirr, Kotbeutel','z. B. Haken neben der Wohnungstür']],
+  cat: [],
+};
+const handoverForm = sp => [...(HANDOVER_FORM[sp]||[]), ...HANDOVER_FORM.common];
+// Anzeige: zusätzlich die Ortsangaben, die woanders erfasst wurden.
+const HANDOVER_VIEW = [
+  ['food_where','Futter & Näpfe'], ['leash_where','Leine & Geschirr'],
+  ['litter_where','Katzenklo & Streu'], ['carrier_where','Transportbox'],
+  ['docs_where','Impfpass & Papiere'], ['keys_where','Schlüssel & Zugang'],
+  ['where_other','Sonstiges'],
+];
+
 // Alles hier drunter ist ehrlich optional: es macht die Betreuung schöner,
 // aber niemand ist in Gefahr, wenn es fehlt.
 const NICE_GROUPS = [
@@ -164,6 +189,10 @@ function careCardsHtml(p){
     if(ex.vet_budget) inner += `<div class="note g" style="margin-top:8px">Behandlung bis ${esc(ex.vet_budget)} € ohne Rückfrage freigegeben.</div>`;
     out += careCard('🚨 Notfall', inner);
   }
+
+  // Übergabe: beim Ankommen braucht der Sitter alle Orte auf einmal.
+  const orte = HANDOVER_VIEW.map(([k,l])=>careRow(l, ex[k])).join('');
+  if(orte.replace(/\s/g,'')) out += careCard('🔑 Wo alles liegt', orte);
 
   // Tierart-spezifischer Alltag.
   const spec = (SPECIES_FIELDS[p.species]||[]).map(f=>careRow(f[1], ex[f[0]])).join('');

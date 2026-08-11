@@ -43,7 +43,7 @@ window.openStayReport = async (bid) => {
 
   $('sheet').innerHTML = `
     <h3>📋 Aufenthalt: ${esc(name)}</h3>
-    <p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px">${esc(SVC_LABEL(b.service))} · ${esc(b.date_text||'')}</p>
+    <p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px">${esc(SVC_LABEL(b.service))} · ${esc(zeitraumText(b))}</p>
 
     ${eintraege.length||gaben.length ? `
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -78,7 +78,7 @@ window.openStayReport = async (bid) => {
   // Für das Teilen den fertigen Text vorhalten, statt das DOM auszulesen.
   window.__stayReport = [
     `📋 Aufenthalts-Bericht: ${name}`,
-    `${SVC_LABEL(b.service)} · ${b.date_text||''}`,
+    `${SVC_LABEL(b.service)} · ${zeitraumText(b)}`,
     '',
     ...kacheln.map(([ic,n,l])=>`${ic} ${n} ${l}`),
     ...(gaben.length?['', '💊 Medikamentengaben:', ...gaben.map(g=>`  ${zeitFmt(g.given_at)} – ${g.med_name} ${g.dose||''}`)]:[]),

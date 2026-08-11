@@ -381,7 +381,10 @@ window.openPetForm = (p) => {
   const spf = SPECIES_FIELDS[p.species] || SPECIES_FIELDS.dog;
   const gSpecies = spf.map(f=>fFld(f[1], fInp(f[0], ex[f[0]], f[2]))).join('');
 
-  // 7 · Optionales
+  // 7 · Übergabe – "wo liegt was", das Wichtigste am ersten Tag
+  const gHand = handoverForm(p.species).map(f=>fFld(f[1], fInp(f[0], ex[f[0]], f[2]))).join('');
+
+  // 8 · Optionales
   const gNice = NICE_GROUPS.map(g => fGrp('', g.title, g.fields.map(f=>{
     if(f[3]==='chips'){
       const sel = (ex[f[0]]||'').split(', ').filter(Boolean);
@@ -400,6 +403,7 @@ window.openPetForm = (p) => {
     ${fGrp('g-emg','🚨 Notfall', gEmg, true)}
     ${fGrp('g-safe','⚠️ Sicherheit & Verhalten', gSafe, warns.length>0)}
     ${fGrp('g-species', p.species==='cat'?'🚽 Katzenklo & Freigang':'🦮 Gassi & Draußen', gSpecies)}
+    ${fGrp('g-hand','🔑 Übergabe – wo alles liegt', gHand)}
     <p style="font-size:12px;color:var(--muted);margin:14px 0 8px">Alles Weitere ist freiwillig – schön für den Sitter, aber nichts geht schief, wenn es fehlt.</p>
     ${gNice}
     ${!isNew?fFld('📄 Dokumente (Impfpass, Befunde …)',
@@ -413,6 +417,8 @@ window.openPetForm = (p) => {
     <button class="ghost" onclick="closeSheet()">Abbrechen</button>`;
 
   if(!isNew) loadDocs(p.id);
+  // Merkt sich Übergabe-Eingaben über einen Tierart-Wechsel hinweg.
+  const handStash = {};
 
   // Tierart wechseln blendet den passenden Alltags-Block ein.
   $('sheet').querySelectorAll('.petopt[data-sp]').forEach(el=>el.onclick=()=>{
@@ -421,6 +427,11 @@ window.openPetForm = (p) => {
     const sp = el.dataset.sp, g = $('g-species');
     g.querySelector('summary').textContent = sp==='cat'?'🚽 Katzenklo & Freigang':'🦮 Gassi & Draußen';
     g.querySelector('.inner').innerHTML = SPECIES_FIELDS[sp].map(f=>fFld(f[1], fInp(f[0], (p.extra||{})[f[0]], f[2]))).join('');
+    // Die Übergabe-Felder hängen ebenfalls an der Tierart (Leine nur beim Hund).
+    // handStash überlebt den Umbau, damit Hund→Katze→Hund nichts verschluckt.
+    const hb = $('g-hand').querySelector('.inner');
+    hb.querySelectorAll('.pextra').forEach(i=>{ if(i.value.trim()) handStash[i.dataset.k] = i.value.trim(); });
+    hb.innerHTML = handoverForm(sp).map(f=>fFld(f[1], fInp(f[0], handStash[f[0]] ?? (p.extra||{})[f[0]], f[2]))).join('');
   });
   // Gesundheits-Weiche
   $('pHealth').querySelectorAll('.petopt').forEach(el=>el.onclick=()=>{

@@ -37,13 +37,16 @@ async function renderBookings(){
   const {data} = await sb.from('bookings').select('*, sitters!inner(id, profiles!inner(display_name)), pets(name, species)')
     .eq('owner_id', me.id).order('created_at', {ascending:false});
   if(!data?.length){$('bookings').innerHTML='<div class="empty">Noch keine Buchungen.<br>Finde unter „Suchen" den passenden Sitter! 🐾</div>';return;}
+  // Laufende zuerst, dann die nächsten – nicht nach Anlagedatum.
+  data.sort((a,b)=> stayRank(a)-stayRank(b) || String(a.starts_on||'').localeCompare(String(b.starts_on||'')));
   $('bookings').innerHTML = data.map(b=>`
     <div class="card bk ${b.status}">
       <div class="st">${STATUS_DE[b.status]||b.status}</div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <div class="avatar" style="width:42px;height:42px;font-size:17px">${initials(b.sitters.profiles.display_name)}</div>
         <div><b style="font-size:14px">${SVC_LABEL(b.service)} bei ${esc(b.sitters.profiles.display_name)}</b>
-        <div class="smeta">${esc(b.date_text)} · ${b.pets?(b.pets.species==='dog'?'🐕 ':'🐈 ')+esc(b.pets.name):''}</div></div>
+        <div class="smeta">${esc(zeitraumText(b))} · ${b.pets?(b.pets.species==='dog'?'🐕 ':'🐈 ')+esc(b.pets.name):''}</div>
+        ${b.status==='confirmed'?STAY_BADGE[stayState(b)]:''}</div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="openConv('${b.sitter_id}','${esc(b.sitters.profiles.display_name)}')">💬 Chat</button>

@@ -4,10 +4,13 @@ async function renderSitterBookings(){
     .eq('sitter_id', me.id).order('created_at', {ascending:false});
   state.sbList = data||[];
   if(!data?.length){$('sitterBookings').innerHTML='<div class="empty">Noch keine Anfragen.<br>Teile dein Profil, um Klienten einzuladen!</div>';return;}
+  // Laufende Betreuungen zuerst – das ist die Arbeit von heute.
+  data.sort((a,b)=> stayRank(a)-stayRank(b) || String(a.starts_on||'').localeCompare(String(b.starts_on||'')));
   $('sitterBookings').innerHTML = data.map(b=>`
     <div class="card bk ${b.status}">
       <div class="st">${STATUS_DE[b.status]||b.status}</div>
-      <div style="margin-top:6px"><b style="font-size:14px">${SVC_LABEL(b.service)} · ${esc(b.date_text)}</b>
+      <div style="margin-top:6px"><b style="font-size:14px">${SVC_LABEL(b.service)} · ${esc(zeitraumText(b))}</b>
+        ${b.status==='confirmed'?STAY_BADGE[stayState(b)]:''}
         <div class="smeta">von ${esc(b.profiles?.display_name||'?')} ${b.profiles?.client_rating?`· ⭐ ${b.profiles.client_rating} Klienten-Score (${b.profiles.client_rating_count})`:''}</div>
         ${b.pets?`<div class="smeta">${b.pets.species==='dog'?'🐕':'🐈'} ${esc(b.pets.name)} · ${esc(b.pets.breed||'')}</div>`:''}
         ${b.message?`<p style="font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5">„${esc(b.message)}“</p>`:''}
@@ -18,7 +21,7 @@ async function renderSitterBookings(){
           <button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="setBookingStatus('${b.id}','confirmed')">✓ Annehmen</button>
           <button class="ghost" style="padding:9px;font-size:12.5px" onclick="setBookingStatus('${b.id}','declined')">Ablehnen</button>`:
           `<button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="openConv('${b.owner_id}','${esc(b.profiles?.display_name||'')}')">💬 Chat</button>
-           ${b.status==='confirmed'&&b.pets?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px;background:var(--accent)" onclick="openCare('${b.id}')">📓 Pflege</button>`:''}
+           ${b.status==='confirmed'&&b.pets&&['laeuft','offen'].includes(stayState(b))?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px;background:var(--accent)" onclick="openCare('${b.id}')">📓 Pflege</button>`:''}
            ${['confirmed','completed'].includes(b.status)?`<button class="ghost" style="padding:9px;font-size:12.5px" onclick="openStayReport('${b.id}')">📋 Bericht</button>`:''}`}
       </div>
     </div>`).join('');
