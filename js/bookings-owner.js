@@ -47,6 +47,7 @@ async function renderBookings(){
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="openConv('${b.sitter_id}','${esc(b.sitters.profiles.display_name)}')">💬 Chat</button>
+        ${['confirmed','completed'].includes(b.status)?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="openStayReport('${b.id}')">📋 Bericht</button>`:''}
         ${['confirmed','completed'].includes(b.status)?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px;background:var(--accent)" onclick="rebook('${b.sitter_id}','${b.service}')">🔁 Erneut buchen</button>`:''}
         ${b.status==='requested'?`<button class="ghost" style="padding:9px;font-size:12.5px" onclick="setBookingStatus('${b.id}','cancelled')">Stornieren</button>`:''}
       </div>

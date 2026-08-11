@@ -18,7 +18,8 @@ async function renderSitterBookings(){
           <button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="setBookingStatus('${b.id}','confirmed')">✓ Annehmen</button>
           <button class="ghost" style="padding:9px;font-size:12.5px" onclick="setBookingStatus('${b.id}','declined')">Ablehnen</button>`:
           `<button class="primary" style="margin:0;padding:9px;font-size:12.5px" onclick="openConv('${b.owner_id}','${esc(b.profiles?.display_name||'')}')">💬 Chat</button>
-           ${b.status==='confirmed'&&b.pets?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px;background:var(--accent)" onclick="openCare('${b.id}')">📓 Pflege</button>`:''}`}
+           ${b.status==='confirmed'&&b.pets?`<button class="primary" style="margin:0;padding:9px;font-size:12.5px;background:var(--accent)" onclick="openCare('${b.id}')">📓 Pflege</button>`:''}
+           ${['confirmed','completed'].includes(b.status)?`<button class="ghost" style="padding:9px;font-size:12.5px" onclick="openStayReport('${b.id}')">📋 Bericht</button>`:''}`}
       </div>
     </div>`).join('');
 }
@@ -29,8 +30,21 @@ window.openCare = async (bid) => {
   const {data:givenToday} = await sb.from('med_log').select('med_name, due_label').eq('pet_id', pet.id).gte('given_at', today+'T00:00:00');
   const isGiven = (name, t) => (givenToday||[]).some(g=>g.med_name===name && g.due_label===t);
   const medRows = (pet.meds||[]).flatMap(m=>(m.times&&m.times.length?m.times:['heute']).map(t=>({m, t})));
+  // Fütterung und Gassi kommen aus dem Profil, statt dass der Sitter sie
+  // von Hand ins Logbuch tippt. Abhaken schreibt den Eintrag.
+  const {data:logToday} = await sb.from('pet_log').select('type, body').eq('pet_id', pet.id).gte('created_at', today+'T00:00:00');
+  const tasks = dayTasks(pet);
+  const offen = tasks.filter(t=>!taskDone(t, logToday)).length;
   $('sheet').innerHTML = `
     <h3>📓 Pflege: ${pet.species==='dog'?'🐕':'🐈'} ${esc(pet.name)}</h3>
+    ${tasks.length?`<div class="section" style="box-shadow:none;border:1px solid var(--line)">
+      <h3 style="font-size:13px">Heute zu tun ${offen?`<span class="tag" style="background:#FDF3DE;color:#B27B0A">${offen} offen</span>`:'<span class="tag" style="background:var(--brand-light);color:var(--brand-dark)">✓ alles erledigt</span>'}</h3>
+      ${tasks.map((t,i)=>{
+        const done = taskDone(t, logToday);
+        return `<div class="svcrow"><span>${TASK_ICON[t.kind]} ${esc(t.at||TASK_WORD[t.kind])}${t.label?`<br><span style="font-size:11px;color:var(--muted)">${esc(t.label)}</span>`:''}</span>
+          ${done?'<b style="color:var(--brand);white-space:nowrap">✓ erledigt</b>':`<button id="task_${i}" onclick="doTask('${bid}',${i})" style="border:none;background:var(--brand);color:#fff;border-radius:99px;padding:6px 14px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">Abhaken</button>`}
+        </div>`;}).join('')}
+    </div>`:''}
     ${medRows.length?`<div class="section" style="box-shadow:none;border:1px solid var(--line)">
       <h3 style="font-size:13px">💊 Medikamente heute</h3>
       ${medRows.map((r,i)=>{
@@ -62,6 +76,17 @@ window.giveMed = async (bid, name, dose, label, i) => {
   await sb.from('messages').insert({booking_id: bid, sender_id: me.id, recipient_id: b.owner_id, body: `💊 ${b.pets.name}: ${name} ${dose} (${label}) gegeben ✓`, is_system: true});
   const btn = $('med_'+i); if(btn) btn.outerHTML = '<b style="color:var(--brand)">✓ gegeben</b>';
   toast('Protokolliert ✓ – Besitzer wurde informiert');
+};
+// Abhaken statt tippen: der Eintrag entsteht aus dem Profil, in demselben
+// Aufbau, den taskDone() wiedererkennt.
+window.doTask = async (bid, i) => {
+  const b = state.sbList.find(x=>x.id===bid); if(!b || !b.pets) return;
+  const t = dayTasks(b.pets)[i]; if(!t) return;
+  const {error} = await sb.from('pet_log').insert({
+    pet_id: b.pets.id, booking_id: bid, author_id: me.id, type: t.kind, body: taskBody(t) || TASK_WORD[t.kind]});
+  if(error){toast('Fehler: '+error.message);return;}
+  const btn = $('task_'+i); if(btn) btn.outerHTML = '<b style="color:var(--brand)">✓ erledigt</b>';
+  toast(TASK_WORD[t.kind]+' abgehakt ✓');
 };
 window.saveLog = async (bid) => {
   const b = state.sbList.find(x=>x.id===bid);

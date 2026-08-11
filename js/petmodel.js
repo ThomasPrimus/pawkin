@@ -182,3 +182,33 @@ function careCardsHtml(p){
   if(!out) out = `<div class="empty">Für ${esc(p.name)} sind noch keine Betreuungs-Infos hinterlegt.</div>`;
   return out;
 }
+
+// ---------- Tagesaufgaben ----------
+// Leitet aus dem Profil ab, was heute konkret zu tun ist. Der Sitter soll
+// im Moment der Betreuung nicht erst ins Profil zurückspringen müssen.
+// Jede erledigte Aufgabe schreibt einen Log-Eintrag – so entsteht die Akte
+// nebenbei, statt dass jemand Freitext tippen muss.
+function dayTasks(p){
+  const ex = p.extra||{}, out = [];
+  // Einheit nur zusammen mit einer Menge – sonst stünde bei leerem Profil
+  // ein "g" als Aufgabe da.
+  const menge = ex.food_amount ? [ex.food_amount, ex.food_unit||'g'].join(' ') : '';
+  const was   = [menge, careVal(p,'food_what')].filter(Boolean).join(' · ');
+  const zeiten = careVal(p,'food_times').split(/,|;| und /).map(s=>s.trim()).filter(Boolean);
+  if(zeiten.length)             zeiten.forEach(t => out.push({kind:'feed', at:t, label:was}));
+  else if(/frei/i.test(ex.food_freq||'')) out.push({kind:'feed', at:'', label:was||'steht zur freien Verfügung'});
+  else {
+    const n = parseInt(ex.food_freq,10) || 0;
+    for(let i=0;i<n;i++) out.push({kind:'feed', at:`${i+1}. Mahlzeit`, label:was});
+    if(!n && was) out.push({kind:'feed', at:'', label:was});
+  }
+  if(p.species==='dog' && ex.walk_times)
+    ex.walk_times.split(/,|;/).map(s=>s.trim()).filter(Boolean).forEach(t => out.push({kind:'walk', at:t, label:''}));
+  return out;
+}
+const TASK_ICON = {feed:'🥣', walk:'🦮'};
+const TASK_WORD = {feed:'Fütterung', walk:'Gassi'};
+// Ein Eintrag gehört zu einer Aufgabe, wenn er mit deren Uhrzeit beginnt.
+// Beide Seiten schreiben denselben Aufbau: "<Zeit> · <Beschreibung>".
+const taskBody = t => [t.at, t.label].filter(Boolean).join(' · ');
+const taskDone = (t, logs) => (logs||[]).some(l => l.type===t.kind && (t.at ? String(l.body||'').startsWith(t.at) : true));
