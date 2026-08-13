@@ -6,10 +6,13 @@ import {
   useNavigate,
   useParams,
 } from '@tanstack/react-router'
+import { BookingsScreen } from '@/features/bookings/BookingsScreen'
 import { PetDetailScreen } from '@/features/pets/PetDetailScreen'
 import { PetFormScreen } from '@/features/pets/PetFormScreen'
 import { PetListScreen } from '@/features/pets/PetListScreen'
 import { AppShell } from '@/features/shell/AppShell'
+import { CareTaskScreen } from '@/features/sitter/CareTaskScreen'
+import { SitterScreen } from '@/features/sitter/SitterScreen'
 
 /**
  * Echte Routen statt Zustand im Kopf: auf dem Handy soll der Zurück-Knopf
@@ -55,7 +58,33 @@ const bearbeitenRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([listeRoute, neuRoute, detailRoute, bearbeitenRoute])
+const buchungenRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/buchungen',
+  component: BookingsScreen,
+})
+
+const sitterRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sitter',
+  component: SitterScreen,
+})
+
+const betreuungRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/betreuung/$bookingId',
+  component: CareTaskScreen,
+})
+
+const routeTree = rootRoute.addChildren([
+  listeRoute,
+  neuRoute,
+  detailRoute,
+  bearbeitenRoute,
+  buchungenRoute,
+  sitterRoute,
+  betreuungRoute,
+])
 
 export const router = createRouter({
   routeTree,
