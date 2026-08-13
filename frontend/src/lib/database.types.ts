@@ -7,6 +7,9 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
+  // Wird von supabase-js zur Typinferenz gebraucht – ohne dieses Feld und
+  // ohne Relationships je Tabelle kollabieren Insert/Update zu `never`.
+  __InternalSupabase: { PostgrestVersion: '14.5' }
   public: {
     Tables: {
       bookings: {
@@ -37,6 +40,7 @@ export type Database = {
           status?: string
         }
         Update: Partial<Database['public']['Tables']['bookings']['Insert']>
+        Relationships: []
       }
       med_log: {
         Row: {
@@ -60,6 +64,7 @@ export type Database = {
           pet_id: string
         }
         Update: Partial<Database['public']['Tables']['med_log']['Insert']>
+        Relationships: []
       }
       messages: {
         Row: {
@@ -83,6 +88,7 @@ export type Database = {
           sender_id: string
         }
         Update: Partial<Database['public']['Tables']['messages']['Insert']>
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -102,11 +108,13 @@ export type Database = {
           user_id: string
         }
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>
+        Relationships: []
       }
       pet_docs: {
         Row: { created_at: string; id: string; name: string; path: string; pet_id: string }
         Insert: { created_at?: string; id?: string; name: string; path: string; pet_id: string }
         Update: Partial<Database['public']['Tables']['pet_docs']['Insert']>
+        Relationships: []
       }
       pet_log: {
         Row: {
@@ -130,6 +138,7 @@ export type Database = {
           type?: string
         }
         Update: Partial<Database['public']['Tables']['pet_log']['Insert']>
+        Relationships: []
       }
       pet_shares: {
         Row: {
@@ -149,6 +158,7 @@ export type Database = {
           role?: string
         }
         Update: Partial<Database['public']['Tables']['pet_shares']['Insert']>
+        Relationships: []
       }
       pets: {
         Row: {
@@ -188,6 +198,7 @@ export type Database = {
           vet_contact?: string
         }
         Update: Partial<Database['public']['Tables']['pets']['Insert']>
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -217,6 +228,7 @@ export type Database = {
           plz?: string
         }
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
+        Relationships: []
       }
       reviews: {
         Row: {
@@ -240,11 +252,13 @@ export type Database = {
           target_id: string
         }
         Update: Partial<Database['public']['Tables']['reviews']['Insert']>
+        Relationships: []
       }
       site_assets: {
         Row: { content: string; content_type: string; path: string }
         Insert: { content: string; content_type?: string; path: string }
         Update: Partial<Database['public']['Tables']['site_assets']['Insert']>
+        Relationships: []
       }
       sitters: {
         Row: {
@@ -276,6 +290,7 @@ export type Database = {
           services?: Json
         }
         Update: Partial<Database['public']['Tables']['sitters']['Insert']>
+        Relationships: []
       }
     }
     Views: Record<never, never>

@@ -43,6 +43,17 @@ Speichern nichts verloren geht, was eine frühere Fassung angelegt hat.
 erzeugen (Supabase-MCP oder `supabase gen types typescript`) – nicht von Hand
 nachpflegen.
 
+## Routen und Deep-Links
+
+Die App nutzt echte Pfade (`/app/tier/<id>`), damit der Zurück-Knopf auf dem
+Handy funktioniert und Profile teilbar sind. Statisch ausgeliefert findet der
+Server unter solchen Pfaden keine Datei – deshalb liegt in `public/.htaccess`
+eine Rewrite-Regel auf `index.html`. Ohne sie läuft jeder geteilte Link und
+jedes Neuladen auf einer Unterseite in einen 404.
+
+Der Service Worker fängt dasselbe später über `navigateFallback` ab, aber erst
+nach seiner Installation – beim ersten Besuch greift nur die Server-Regel.
+
 ## Umschalten auf die Wurzel
 
 `BASE` in `vite.config.ts` von `/app/` auf `/` ändern. Das Manifest und der
