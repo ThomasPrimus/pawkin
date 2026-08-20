@@ -1,0 +1,67 @@
+name: Frontend bauen und ausliefern
+
+# Hostinger zieht dieses Repository per Git-Auto-Pull und liefert das
+# Verzeichnis direkt aus – es gibt dort keinen Build-Schritt. Deshalb muss das
+# fertige Bundle im Repo liegen. Diese Action erzeugt es, damit niemand von
+# Hand einen Build committen muss.
+#
+# Der paths-Filter steht auf frontend/**, der Commit dieser Action betrifft
+# nur app/ – dadurch löst sie sich nicht selbst wieder aus.
+
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**', '.github/workflows/frontend.yml']
+  pull_request:
+    paths: ['frontend/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pruefen-und-bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        working-directory: frontend
+        run: npm ci
+
+      # Erst prüfen, dann bauen: ein roter Test darf nie live gehen.
+      - name: Typen prüfen
+        working-directory: frontend
+        run: npx tsc -b
+
+      - name: Tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Bauen
+        working-directory: frontend
+        run: npm run build
+
+      # Nur auf main: das Ergebnis zurückschreiben, damit Hostinger es zieht.
+      - name: Build committen
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add app
+          if git diff --staged --quiet; then
+            echo 'Build unverändert – nichts zu committen.'
+            exit 0
+          fi
+          git commit -m 'Frontend-Build aktualisieren [skip ci]'
+          git push

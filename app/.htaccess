@@ -1,0 +1,18 @@
+# Deep-Links der React-App (z. B. /app/tier/<id>) auf index.html leiten.
+# Ohne diese Regel liefert der Server 404: unter /app/tier/ liegt keine Datei,
+# die Route kennt nur der Browser. Betrifft jeden geteilten Link und jeden
+# Neuladen-Klick auf einer Unterseite.
+#
+# Der Service Worker faengt das spaeter selbst ab (navigateFallback), aber
+# erst nach seiner Installation - beim ersten Besuch greift nur diese Regel.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /app/
+
+  # Vorhandene Dateien und Verzeichnisse unveraendert ausliefern.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule . /app/index.html [L]
+</IfModule>

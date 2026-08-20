@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+/* Die Marken-Tokens der bestehenden App, damit die neue Oberfläche identisch
+   aussieht und wir Screen für Screen umziehen können, ohne dass es bricht.
+   Tailwind 4 konfiguriert sich in CSS – kein tailwind.config.js mehr. */
+@theme {
+  --color-brand: #0e7c6b;
+  --color-brand-dark: #0a5d50;
+  --color-brand-light: #e4f4f1;
+  --color-accent: #ff7a59;
+  --color-accent-light: #ffede7;
+  --color-ink: #1d2b2a;
+  --color-muted: #5f7472;
+  --color-line: #e3ecea;
+  --color-bg: #f6faf9;
+  --color-gold: #f5a623;
+
+  --radius-card: 16px;
+  --shadow-card: 0 2px 12px rgb(14 60 54 / 0.08);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sicheres Layout auf Geräten mit Notch – die alte App hatte das über
+   viewport-fit=cover geregelt. */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

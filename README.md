@@ -6,13 +6,60 @@ Live: https://pawkin.eu
 
 ## Struktur
 
+Zwei Oberflächen parallel: die bestehende App unter `pawkin.eu/app.html` und
+die neue React-Fassung unter `pawkin.eu/app/`. Es zieht Screen für Screen um,
+damit die Live-Seite nie offline ist. Supabase ist für beide dasselbe.
+
+### Neu (React)
+
+- `frontend/` – Quellcode: Vite 8, React 19, TypeScript 7, Zod, Tailwind 4.
+  Siehe `frontend/README.md`.
+- `app/` – **erzeugter Build**, von der GitHub Action committet. Nicht von
+  Hand bearbeiten; Änderungen gehören nach `frontend/`.
+
+### Bestehend (Vanilla JS)
+
 - `index.html` – Landingpage (statisch)
-- `app.html` – Web-App (Single-File, verbindet sich mit Supabase-Backend)
+- `app.html` – Web-App: HTML-Shell (Markup + Script-Tags), kein Build-Step
+- `css/app.css` – Styles der App
+- `vendor/supabase.js` – gebundelte Supabase-JS-Library (unverändert, nicht editieren)
+- `js/*.js` – App-Code, nach Bereichen aufgeteilt
+
+### js/ – Ladereihenfolge ist bindend
+
+Klassische `<script>`-Tags mit gemeinsamem globalem Scope (keine ES-Module –
+die ~100 Inline-`onclick`-Handler im Markup brauchen globale Funktionen).
+Die Reihenfolge in `app.html` entspricht dem früheren Single-File-Ablauf:
+
+| Datei | Inhalt |
+|---|---|
+| `config.js` | Supabase-Client (`sb`), URL + anon key |
+| `i18n.js` | Sprachen, `translateNode`, Sprach-Sheet |
+| `core.js` | `SERVICES`, globaler `state`, Helfer (`$`, `esc`, `toast`, `go`) |
+| `auth.js` | Login, Registrierung, OAuth |
+| `boot.js` | `boot()`, Modus-Umschaltung Besitzer/Sitter |
+| `data.js` | Laden von Sittern & Tieren, Geocoding |
+| `reminders.js` | Erinnerungs-Zentrale, Glocke |
+| `search.js` | Suche & Filter |
+| `detail.js` | Sitter-Detailansicht |
+| `booking.js` | Buchung anlegen |
+| `bookings-owner.js` | Buchungen aus Besitzer-Sicht |
+| `sitter.js` | Sitter-Bereich |
+| `pets.js` | Tierakte: Doks, Medikation, Log, Gewicht |
+| `chat.js` | Threads & Konversationen |
+| `main.js` | ruft `boot()` – muss zuletzt geladen werden |
+
+Neue Datei? `<script>`-Tag in `app.html` an der passenden Stelle ergänzen.
 
 ## Deployment
 
 Hostinger zieht dieses Repository automatisch (hPanel → Erweitert → Git).
 Jeder Push auf `main` geht live.
+
+Weil dort kein Build-Schritt läuft, muss das fertige Bundle im Repo liegen.
+`.github/workflows/frontend.yml` erledigt das: bei Änderungen unter
+`frontend/` prüft es Typen, Tests und Lint, baut nach `app/` und committet
+das Ergebnis zurück. Ein roter Test geht nie live.
 
 ## Backend
 
