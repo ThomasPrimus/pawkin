@@ -10,6 +10,8 @@ import { BookingsScreen } from '@/features/bookings/BookingsScreen'
 import { PetDetailScreen } from '@/features/pets/PetDetailScreen'
 import { PetFormScreen } from '@/features/pets/PetFormScreen'
 import { PetListScreen } from '@/features/pets/PetListScreen'
+import { SearchScreen } from '@/features/search/SearchScreen'
+import { SitterDetailScreen } from '@/features/search/SitterDetailScreen'
 import { AppShell } from '@/features/shell/AppShell'
 import { CareTaskScreen } from '@/features/sitter/CareTaskScreen'
 import { SitterScreen } from '@/features/sitter/SitterScreen'
@@ -76,7 +78,22 @@ const betreuungRoute = createRoute({
   component: CareTaskScreen,
 })
 
+const suchenRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/suchen',
+  component: SearchScreen,
+})
+
+// Achtung: liegt vor /sitter, damit /sitter nicht als sitterId gelesen wird.
+const sitterDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sitter/$sitterId',
+  component: SitterDetailScreen,
+})
+
 const routeTree = rootRoute.addChildren([
+  suchenRoute,
+  sitterDetailRoute,
   listeRoute,
   neuRoute,
   detailRoute,

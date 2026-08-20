@@ -39,6 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 const NAV = [
+  { pfad: '/suchen', icon: '🔍', text: 'Suchen' },
   { pfad: '/', icon: '🐾', text: 'Meine Tiere' },
   { pfad: '/buchungen', icon: '📅', text: 'Buchungen' },
   { pfad: '/sitter', icon: '🧑‍🌾', text: 'Sitter' },
@@ -52,7 +53,9 @@ function NavLeiste() {
     <nav className="fixed inset-x-0 bottom-0 border-line border-t bg-white pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto flex max-w-[480px]">
         {NAV.map((n) => {
-          const aktiv = n.pfad === '/' ? pfad === '/' : pfad.startsWith(n.pfad)
+          // Exakter Vergleich: sonst faerbt /sitter/<id> aus der Suche den
+          // Sitter-Bereich ein, obwohl man dort gar nicht ist.
+          const aktiv = pfad === n.pfad
           return (
             <Link
               key={n.pfad}
